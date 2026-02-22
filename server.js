@@ -164,22 +164,7 @@ app.post('/api/addresses', async (req, res) => {
     catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-
 // --- ORDER PROCESSING ---
-
-// NEW: Fetch past orders for a specific user
-app.get('/api/orders/:userId', async (req, res) => { 
-    try { 
-        // Find orders matching the userId and sort them by newest first
-        const userOrders = await Order.find({ userId: req.params.userId }).sort({ createdAt: -1 }); 
-        res.json({ success: true, data: userOrders }); 
-    } catch (err) { 
-        res.status(500).json({ success: false, message: err.message }); 
-    }
-});
-
-app.post('/api/orders', async (req, res) => { 
-    // ... (keep your existing POST route here) ...
 app.post('/api/orders', async (req, res) => { 
     try { const newOrder = new Order({ orderId: `ORD-${Date.now()}`, ...req.body }); await newOrder.save(); res.json({ success: true, order: newOrder }); } 
     catch (err) { res.status(500).json({ success: false, message: err.message }); }
@@ -189,5 +174,4 @@ app.post('/api/orders', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 MediFlow LIVE API Server running on port ${PORT}`);
-    
 });
