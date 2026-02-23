@@ -5,8 +5,6 @@ const http = require('http');
 const { Server } = require('socket.io'); 
 const multer = require('multer');
 const webpush = require('web-push');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app); 
@@ -20,7 +18,6 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static('uploads')); // Allows frontend to view uploaded images
 
 // ==========================================
 // 2. CLOUD DATABASE CONNECTION
@@ -165,23 +162,32 @@ app.post('/api/orders', async (req, res) => {
 // 5. ADVANCED FILE UPLOADS & PUSH NOTIFICATIONS
 // ==========================================
 
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const dir = './uploads';
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, 'rx-' + Date.now() + path.extname(file.originalname));
-    }
+// ==========================================
+// 5. ADVANCED FILE UPLOADS (Render-Safe Memory Storage)
+// ==========================================
+
+// Instead of saving to Render's disk, we hold the image in memory temporarily
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // Limit to 5MB to keep database fast
 });
-const upload = multer({ storage });
 
 app.post('/api/upload-rx', upload.single('prescription'), (req, res) => {
-    if (!req.file) return res.status(400).json({ success: false, message: "No image provided" });
-    // Returns the URL path so the frontend can attach it to the order
-    res.json({ success: true, fileUrl: `/uploads/${req.file.filename}` });
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: "No image provided" });
+    }
+
+    try {
+        // Convert the image file into a text string (Base64)
+        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        
+        // Return the string. Your frontend will read this exactly like a standard URL!
+        res.json({ success: true, fileUrl: base64Image });
+    } catch (err) {
+        console.error("Upload Conversion Error:", err);
+        res.status(500).json({ success: false, message: "Failed to process image" });
+    }
 });
 
 // Web Push Notifications
