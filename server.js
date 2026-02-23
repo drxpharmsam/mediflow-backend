@@ -163,36 +163,31 @@ app.post('/api/orders', async (req, res) => {
 // ==========================================
 
 // ==========================================
-// 5. ADVANCED FILE UPLOADS (Render-Safe Memory Storage)
+// ==========================================
+// 5. ADVANCED FILE UPLOADS & PUSH NOTIFICATIONS
 // ==========================================
 
-// Instead of saving to Render's disk, we hold the image in memory temporarily
+// Multer Storage Configuration (Render-Safe Memory Storage)
 const storage = multer.memoryStorage();
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 } // Limit to 5MB to keep database fast
+    limits: { fileSize: 5 * 1024 * 1024 } 
 });
 
 app.post('/api/upload-rx', upload.single('prescription'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ success: false, message: "No image provided" });
-    }
-
+    if (!req.file) return res.status(400).json({ success: false, message: "No image provided" });
     try {
-        // Convert the image file into a text string (Base64)
         const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-        
-        // Return the string. Your frontend will read this exactly like a standard URL!
         res.json({ success: true, fileUrl: base64Image });
     } catch (err) {
-        console.error("Upload Conversion Error:", err);
         res.status(500).json({ success: false, message: "Failed to process image" });
     }
 });
 
 // Web Push Notifications
 const vapidKeys = webpush.generateVAPIDKeys();
-webpush.setVapidDetails('mailto:admin@mediflow.com', vapidKeys.publicKey, vapidKeys.privateVapidKey);
+// FIXED TYPO HERE: vapidKeys.privateKey
+webpush.setVapidDetails('mailto:admin@mediflow.com', vapidKeys.publicKey, vapidKeys.privateKey);
 
 let pushSubscriptions = []; 
 
@@ -246,3 +241,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 MediFlow LIVE API Server running on port ${PORT}`);
 });
+
