@@ -48,12 +48,12 @@ const Address = mongoose.model('Address', AddressSchema);
 const OrderSchema = new mongoose.Schema({
     orderId: String, 
     userId: String, 
-    items: Array, 
+    items: Array, // This array will automatically store the { name, price, qty } from the frontend!
     totalAmount: Number,
     addressId: String, 
     status: { type: String, default: "Confirmed" },
     hasPrescription: Boolean, 
-    rxImageUrl: String, // NEW: Saves the prescription image link
+    rxImageUrl: String, 
     createdAt: { type: Date, default: Date.now }
 });
 const Order = mongoose.model('Order', OrderSchema);
@@ -149,45 +149,93 @@ app.post('/api/addresses', async (req, res) => {
     catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+
+// --- ORDERS & CART (FIXED) ---
+
+// 1. Save an Order (Checks if frontend sent an ID, otherwise generates one)
 app.post('/api/orders', async (req, res) => { 
     try { 
-        const newOrder = new Order({ orderId: `ORD-${Date.now()}`, ...req.body }); 
+        const finalOrderId = req.body.orderId || `ORD-${Date.now()}`;
+        const newOrder = new Order({ ...req.body, orderId: finalOrderId }); 
         await newOrder.save(); 
         res.json({ success: true, order: newOrder }); 
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// 2. Fetch User's Order History (NEW FIX: Required for the "My Orders" tab)
+app.get('/api/orders/:userId', async (req, res) => {
+    try {
+        const userOrders = await Order.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+        res.json({ success: true, data: userOrders });
+    } catch (err) { 
+        res.status(500).json({ success: false, message: "Error fetching order history" }); 
+    }
+});
+
 
 // ==========================================
-// 5. ADVANCED FILE UPLOADS & PUSH NOTIFICATIONS
+// ADMIN ROUTES 
 // ==========================================
 
+// Fetch ALL orders across the entire platform (Sorted by newest)
+app.get('/api/admin/orders', async (req, res) => {
+    try {
+        const allOrders = await Order.find().sort({ createdAt: -1 });
+        res.json({ success: true, data: allOrders });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error fetching admin orders" });
+    }
+});
+
+// Update the status of an order (Accept/Reject)
+app.put('/api/orders/:orderId/status', async (req, res) => {
+    try {
+        const { status } = req.body;
+        const { orderId } = req.params;
+
+        const updatedOrder = await Order.findOneAndUpdate(
+            { orderId: orderId }, 
+            { status: status }, 
+            { new: true }
+        );
+
+        if (!updatedOrder) {
+            return res.status(404).json({ success: false, message: "Order not found" });
+        }
+
+        res.json({ success: true, order: updatedOrder });
+    } catch (err) {
+        res.status(500).json({ success: false, message: "Error updating order status" });
+    }
+});
+
 // ==========================================
-// ==========================================
-// 5. ADVANCED FILE UPLOADS & PUSH NOTIFICATIONS
+// 5. ADVANCED FILE UPLOADS (Render-Safe Memory Storage)
 // ==========================================
 
-// Multer Storage Configuration (Render-Safe Memory Storage)
 const storage = multer.memoryStorage();
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 } 
+    limits: { fileSize: 5 * 1024 * 1024 } // Limit to 5MB to keep database fast
 });
 
 app.post('/api/upload-rx', upload.single('prescription'), (req, res) => {
-    if (!req.file) return res.status(400).json({ success: false, message: "No image provided" });
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: "No image provided" });
+    }
+
     try {
         const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
         res.json({ success: true, fileUrl: base64Image });
     } catch (err) {
+        console.error("Upload Conversion Error:", err);
         res.status(500).json({ success: false, message: "Failed to process image" });
     }
 });
 
 // Web Push Notifications
 const vapidKeys = webpush.generateVAPIDKeys();
-// FIXED TYPO HERE: vapidKeys.privateKey
-webpush.setVapidDetails('mailto:admin@mediflow.com', vapidKeys.publicKey, vapidKeys.privateKey);
+webpush.setVapidDetails('mailto:admin@mediflow.com', vapidKeys.publicKey, vapidKeys.privateVapidKey);
 
 let pushSubscriptions = []; 
 
@@ -241,4 +289,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 MediFlow LIVE API Server running on port ${PORT}`);
 });
-
