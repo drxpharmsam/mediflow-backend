@@ -20,9 +20,9 @@ const io = new Server(server, {
     cors: { origin: "*" } 
 });
 
-// Health Check Route
+// Health Check Route (Keeps Render Server Alive)
 app.get('/', (req, res) => {
-    res.status(200).send("✅ MediFlow Production Backend is LIVE.");
+    res.status(200).send("✅ MediFlow Stable Production Backend is LIVE.");
 });
 
 // ==========================================
@@ -139,7 +139,7 @@ app.post('/api/auth/verify', async (req, res) => {
         const validRecord = await OTP.findOne({ phone, otp });
         if (!validRecord) return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
 
-        await OTP.deleteOne({ phone }); // Consume OTP so it can't be reused
+        await OTP.deleteOne({ phone }); 
         const existingUser = await User.findOne({ phone: phone });
         
         if (existingUser) {
@@ -240,29 +240,25 @@ const storage = multer.memoryStorage();
 // Set up multer, but don't inject it directly into the route yet
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit protects the server from overload
 }).single('prescription');
 
 app.post('/api/upload-rx', (req, res) => {
     // Wrap the upload function to catch ANY multer errors gracefully
     upload(req, res, function (err) {
         if (err instanceof multer.MulterError) {
-            // A Multer-specific error occurred (e.g., File too large)
             console.error("Multer Error:", err.message);
             return res.status(400).json({ success: false, message: `Image upload failed: ${err.message}` });
         } else if (err) {
-            // An unknown server error occurred
             console.error("Unknown Upload Error:", err);
             return res.status(500).json({ success: false, message: "Server error during upload." });
         }
 
-        // If we reach here, the upload was successful!
         if (!req.file) {
             return res.status(400).json({ success: false, message: "No image file detected." });
         }
 
         try {
-            // Convert to Base64 String URL safely
             const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
             res.json({ success: true, fileUrl: base64Image });
         } catch (conversionErr) {
@@ -327,6 +323,5 @@ io.on('connection', (socket) => {
 // ==========================================
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 MediFlow Production Server running on port ${PORT}`);
+    console.log(`🚀 MediFlow Stable Production Server running on port ${PORT}`);
 });
-
