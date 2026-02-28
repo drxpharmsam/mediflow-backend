@@ -1,17 +1,19 @@
 {
   "name": "mediflow-backend",
   "version": "1.0.0",
-  "description": "MediFlow Backend API & WebSockets",
+  "description": "Production Backend API & WebSockets for MediFlow",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "mongoose": "^8.2.1",
     "multer": "^1.4.5-lts.1",
-    "socket.io": "^4.7.4"
+    "socket.io": "^4.7.4",
+    "web-push": "^3.6.7"
   },
   "engines": {
     "node": ">=18.0.0"
