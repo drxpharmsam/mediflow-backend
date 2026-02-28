@@ -73,10 +73,8 @@ const MedicineSchema = new mongoose.Schema({
 });
 const Medicine = mongoose.model('Medicine', MedicineSchema);
 
-const OtpSchema = new mongoose.Schema({
-    phone: String, otp: String, createdAt: { type: Date, expires: '5m', default: Date.now } 
-});
-const OTP = mongoose.model('OTP', OtpSchema);
+// OtpVerification model is registered here for use across routes
+require('./models/OtpVerification');
 
 // --- SEED MEDICINES ---
 async function seedMedicines() {
@@ -107,57 +105,8 @@ async function seedMedicines() {
 // ==========================================
 
 // --- LIVE AUTHENTICATION & REAL OTP ---
-app.post('/api/auth/send-otp', async (req, res) => {
-    const { phone } = req.body;
-    if (!phone || phone.length !== 10) return res.status(400).json({ success: false, message: "Valid 10-digit phone number required" });
-
-    // GENERATE A REAL, RANDOM 6-DIGIT OTP
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    try {
-        await OTP.findOneAndUpdate(
-            { phone }, 
-            { otp: generatedOtp, createdAt: Date.now() }, 
-            { upsert: true, returnDocument: 'after' } 
-        );
-        
-        // 👉 REAL SMS GATEWAY API GOES HERE
-        // e.g., await sendSMS(phone, `Your MediFlow OTP is: ${generatedOtp}`);
-        
-        console.log(`\n💬 --- REAL OTP REQUEST ---`);
-        console.log(`📱 Phone: ${phone} | 🔑 OTP: ${generatedOtp}`);
-        
-        res.json({ success: true, message: "OTP sent successfully." });
-    } catch (err) { 
-        res.status(500).json({ success: false, message: "Failed to generate OTP." }); 
-    }
-});
-
-app.post('/api/auth/verify', async (req, res) => {
-    const { phone, otp } = req.body;
-    try {
-        const validRecord = await OTP.findOne({ phone, otp });
-        if (!validRecord) return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
-
-        await OTP.deleteOne({ phone }); 
-        const existingUser = await User.findOne({ phone: phone });
-        
-        if (existingUser) {
-            return res.json({ success: true, isNewUser: false, user: { ...existingUser._doc, id: existingUser._id } });
-        } else {
-            return res.json({ success: true, isNewUser: true });
-        }
-    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-app.post('/api/auth/register', async (req, res) => {
-    const { phone, name, age, gender } = req.body;
-    try {
-        const newUser = new User({ phone, name, age, gender });
-        await newUser.save(); 
-        res.json({ success: true, user: { ...newUser._doc, id: newUser._id } });
-    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
+const authRoutes = require('./routes/auth');
+app.use('/api/auth', authRoutes);
 
 
 // --- DATA FETCHING ---
