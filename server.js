@@ -5,6 +5,7 @@ const http = require('http');
 const { Server } = require('socket.io'); 
 const multer = require('multer');
 const webpush = require('web-push');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app); 
@@ -111,8 +112,8 @@ app.post('/api/auth/send-otp', async (req, res) => {
     const { phone } = req.body;
     if (!phone || phone.length !== 10) return res.status(400).json({ success: false, message: "Valid 10-digit phone number required" });
 
-    // GENERATE A REAL, RANDOM 6-DIGIT OTP
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    // GENERATE A CRYPTOGRAPHICALLY SECURE RANDOM 6-DIGIT OTP
+    const generatedOtp = crypto.randomInt(100000, 1000000).toString();
 
     try {
         await OTP.findOneAndUpdate(
