@@ -6,6 +6,8 @@ const { Server } = require('socket.io');
 const multer = require('multer');
 const webpush = require('web-push');
 
+const adminAuth = require('./middleware/adminAuth');
+
 const app = express();
 const server = http.createServer(app); 
 
@@ -45,37 +47,10 @@ mongoose.connect(MONGO_URI)
 // ==========================================
 // 3. DATABASE SCHEMAS 
 // ==========================================
-const UserSchema = new mongoose.Schema({
-    phone: { type: String, required: true, unique: true },
-    name: String, 
-    age: Number, 
-    gender: String,
-    createdAt: { type: Date, default: Date.now }
-});
-const User = mongoose.model('User', UserSchema);
-
-const AddressSchema = new mongoose.Schema({
-    userId: String, line1: String, line2: String, tag: String
-});
-const Address = mongoose.model('Address', AddressSchema);
-
-const OrderSchema = new mongoose.Schema({
-    orderId: { type: String, unique: true }, 
-    userId: String, 
-    items: Array, 
-    totalAmount: Number,
-    addressId: String, 
-    status: { type: String, default: "Confirmed" },
-    hasPrescription: Boolean, 
-    rxImageUrl: String, 
-    date: { type: Date, default: Date.now } 
-});
-const Order = mongoose.model('Order', OrderSchema);
-
-const MedicineSchema = new mongoose.Schema({
-    name: String, price: Number, category: String, type: String, icon: String, isRx: Boolean
-});
-const Medicine = mongoose.model('Medicine', MedicineSchema);
+const User = require('./models/User');
+const Address = require('./models/Address');
+const Order = require('./models/Order');
+const Medicine = require('./models/Medicine');
 
 // OtpVerification model is registered here for use across routes
 require('./models/OtpVerification');
@@ -111,6 +86,15 @@ async function seedMedicines() {
 // --- LIVE AUTHENTICATION & REAL OTP ---
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
+
+const rateLimit = require('express-rate-limit');
+const orderStatusLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please try again later.' }
+});
 
 
 // --- DATA FETCHING ---
@@ -153,17 +137,11 @@ app.get('/api/orders/:userId', async (req, res) => {
 // ==========================================
 // 5. ADMIN ROUTES (PHARMACIST END)
 // ==========================================
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminAuth, adminRoutes);
 
-app.get('/api/admin/orders', async (req, res) => {
-    try {
-        const allOrders = await Order.find().sort({ date: -1 });
-        res.json({ success: true, data: allOrders });
-    } catch (err) {
-        res.status(500).json({ success: false, message: "Error fetching admin orders" });
-    }
-});
-
-app.put('/api/orders/:orderId/status', async (req, res) => {
+// --- ORDER STATUS UPDATE (admin-protected) ---
+app.put('/api/orders/:orderId/status', orderStatusLimiter, adminAuth, async (req, res) => {
     try {
         const { status } = req.body;
         const { orderId } = req.params;
@@ -183,6 +161,13 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
         res.status(500).json({ success: false, message: "Error updating order status" });
     }
 });
+
+
+// ==========================================
+// 5b. DELIVERY ROUTES
+// ==========================================
+const deliveryRoutes = require('./routes/delivery');
+app.use('/api/delivery', deliveryRoutes);
 
 
 // ==========================================
