@@ -20,7 +20,7 @@ const io = new Server(server, {
     cors: { origin: "*" } 
 });
 
-// Render Health Check (Crucial to keep the server alive)
+// Health Check Route
 app.get('/', (req, res) => {
     res.status(200).send("✅ MediFlow Production Backend is LIVE.");
 });
@@ -42,7 +42,10 @@ mongoose.connect(MONGO_URI)
 // 3. DATABASE SCHEMAS 
 // ==========================================
 const UserSchema = new mongoose.Schema({
-    phone: String, name: String, age: Number, gender: String,
+    phone: { type: String, required: true, unique: true },
+    name: String, 
+    age: Number, 
+    gender: String,
     createdAt: { type: Date, default: Date.now }
 });
 const User = mongoose.model('User', UserSchema);
@@ -53,7 +56,7 @@ const AddressSchema = new mongoose.Schema({
 const Address = mongoose.model('Address', AddressSchema);
 
 const OrderSchema = new mongoose.Schema({
-    orderId: String, 
+    orderId: { type: String, unique: true }, 
     userId: String, 
     items: Array, 
     totalAmount: Number,
@@ -103,7 +106,7 @@ async function seedMedicines() {
 // 4. CORE API ROUTES (USER END)
 // ==========================================
 
-// --- LIVE AUTHENTICATION & OTP ---
+// --- LIVE AUTHENTICATION & REAL OTP ---
 app.post('/api/auth/send-otp', async (req, res) => {
     const { phone } = req.body;
     if (!phone || phone.length !== 10) return res.status(400).json({ success: false, message: "Valid 10-digit phone number required" });
@@ -115,13 +118,12 @@ app.post('/api/auth/send-otp', async (req, res) => {
         await OTP.findOneAndUpdate(
             { phone }, 
             { otp: generatedOtp, createdAt: Date.now() }, 
-            { upsert: true, returnDocument: 'after' } // Clean, warning-free Mongoose syntax
+            { upsert: true, returnDocument: 'after' } 
         );
         
-        // 👉 SMS GATEWAY INTEGRATION GOES HERE (e.g., Twilio, MSG91)
-        // Example: await smsClient.send({ to: phone, text: `Your MediFlow OTP is: ${generatedOtp}` });
+        // 👉 REAL SMS GATEWAY API GOES HERE
+        // e.g., await sendSMS(phone, `Your MediFlow OTP is: ${generatedOtp}`);
         
-        // Prints to Render server logs so you can read the OTP during testing
         console.log(`\n💬 --- REAL OTP REQUEST ---`);
         console.log(`📱 Phone: ${phone} | 🔑 OTP: ${generatedOtp}`);
         
@@ -137,7 +139,7 @@ app.post('/api/auth/verify', async (req, res) => {
         const validRecord = await OTP.findOne({ phone, otp });
         if (!validRecord) return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
 
-        await OTP.deleteOne({ phone });
+        await OTP.deleteOne({ phone }); // Consume OTP so it can't be reused
         const existingUser = await User.findOne({ phone: phone });
         
         if (existingUser) {
@@ -290,7 +292,6 @@ io.on('connection', (socket) => {
 
     socket.on('joinDeliveryRoom', (data) => {
         socket.join(data.orderId);
-        console.log(`🛵 Client joined tracking room for order: ${data.orderId}`);
     });
 
     socket.on('driverLocationUpdate', (data) => {
@@ -310,5 +311,5 @@ io.on('connection', (socket) => {
 // ==========================================
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 MediFlow LIVE API Server running on port ${PORT}`);
+    console.log(`🚀 MediFlow Production Server running on port ${PORT}`);
 });
