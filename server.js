@@ -233,28 +233,44 @@ app.put('/api/orders/:orderId/status', async (req, res) => {
 
 
 // ==========================================
-// 6. ADVANCED FILE UPLOADS 
+// 6. ADVANCED FILE UPLOADS (CRASH-PROOF)
 // ==========================================
 const storage = multer.memoryStorage();
+
+// Set up multer, but don't inject it directly into the route yet
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit protects the server from overload
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+}).single('prescription');
+
+app.post('/api/upload-rx', (req, res) => {
+    // Wrap the upload function to catch ANY multer errors gracefully
+    upload(req, res, function (err) {
+        if (err instanceof multer.MulterError) {
+            // A Multer-specific error occurred (e.g., File too large)
+            console.error("Multer Error:", err.message);
+            return res.status(400).json({ success: false, message: `Image upload failed: ${err.message}` });
+        } else if (err) {
+            // An unknown server error occurred
+            console.error("Unknown Upload Error:", err);
+            return res.status(500).json({ success: false, message: "Server error during upload." });
+        }
+
+        // If we reach here, the upload was successful!
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "No image file detected." });
+        }
+
+        try {
+            // Convert to Base64 String URL safely
+            const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+            res.json({ success: true, fileUrl: base64Image });
+        } catch (conversionErr) {
+            console.error("Base64 Conversion Error:", conversionErr);
+            res.status(500).json({ success: false, message: "Failed to process image format." });
+        }
+    });
 });
-
-app.post('/api/upload-rx', upload.single('prescription'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ success: false, message: "No image provided" });
-    }
-
-    try {
-        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-        res.json({ success: true, fileUrl: base64Image });
-    } catch (err) {
-        console.error("Upload Conversion Error:", err);
-        res.status(500).json({ success: false, message: "Failed to process image" });
-    }
-});
-
 
 // ==========================================
 // 7. WEB PUSH NOTIFICATIONS
@@ -313,3 +329,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 MediFlow Production Server running on port ${PORT}`);
 });
+
