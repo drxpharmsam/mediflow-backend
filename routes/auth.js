@@ -21,7 +21,7 @@ const authLimiter = rateLimit({
 
 // POST /api/auth/send-otp
 // Validates phone, checks throttle, generates a secure OTP, saves to DB, and outputs to console.
-router.post('/send-otp', async (req, res) => {
+router.post('/send-otp', authLimiter, async (req, res) => {
     const { phone } = req.body;
 
     if (!phone || !/^\d{10}$/.test(phone)) {
@@ -58,6 +58,11 @@ router.post('/verify', authLimiter, async (req, res) => {
 
     if (!phone || !otp) {
         return res.status(400).json({ success: false, message: 'Phone and OTP are required.' });
+    }
+
+    // Reject anything that is not a 6-digit numeric string before hitting the database.
+    if (!/^\d{6}$/.test(otp)) {
+        return res.status(400).json({ success: false, message: 'OTP must be a 6-digit number.' });
     }
 
     try {

@@ -28,7 +28,11 @@ app.get('/', (req, res) => {
 // ==========================================
 // 2. CLOUD DATABASE CONNECTION
 // ==========================================
-const MONGO_URI = 'mongodb+srv://ayushgame:ayushsag@cluster0.ta1rgbl.mongodb.net/mediflow?appName=Cluster0';
+const MONGO_URI = process.env.MONGODB_URI;
+if (!MONGO_URI) {
+    console.error('❌ FATAL: MONGODB_URI environment variable is not set. Set it before starting the server.');
+    process.exit(1);
+}
 
 mongoose.connect(MONGO_URI)
     .then(() => {
