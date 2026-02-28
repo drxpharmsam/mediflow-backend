@@ -1,6 +1,12 @@
 const crypto = require('crypto');
 const OtpVerification = require('../models/OtpVerification');
 
+// Guard: crypto.randomInt is available in Node.js >= 14.10.0 (required by engines field).
+// If somehow unavailable, fail loudly at startup rather than silently using a fallback.
+if (typeof crypto.randomInt !== 'function') {
+    throw new Error('FATAL: crypto.randomInt is not available. Node.js >= 14.10.0 is required for secure OTP generation. Refusing to start.');
+}
+
 // --- CONFIGURATION ---
 const OTP_EXPIRY_MINUTES = 5;       // OTP expires after this many minutes
 const OTP_THROTTLE_MAX = 5;         // Max OTP requests allowed per phone per window
@@ -14,7 +20,13 @@ const OTP_THROTTLE_WINDOW_HOURS = 1; // Throttle window in hours
 function generateOtp() {
     // crypto.randomInt(min, max) is exclusive of max; range 100000–999999 gives natural 6-digit OTPs
     const otp = crypto.randomInt(100000, 1000000);
-    return otp.toString();
+    const otpStr = otp.toString();
+    // Defensive: ensure the result is always a 6-digit numeric string. Should never fail,
+    // but if it does (e.g. unexpected runtime behaviour), refuse to proceed.
+    if (!/^\d{6}$/.test(otpStr)) {
+        throw new Error('OTP generation produced an unexpected value; refusing to use it.');
+    }
+    return otpStr;
 }
 
 /**
@@ -28,8 +40,10 @@ function generateOtp() {
  */
 async function sendOtp(phone, otp) {
     // TODO: Replace with real SMS provider (e.g. Twilio, MSG91, Fast2SMS)
+    // SECURITY: Do not log the full OTP in production. The masked value below is for debugging only.
+    const masked = otp.slice(0, 2) + '****';
     console.log(`\n💬 --- OTP REQUEST ---`);
-    console.log(`📱 Phone: ${phone} | 🔑 OTP: ${otp}`);
+    console.log(`📱 Phone: ${phone} | 🔑 OTP: ${masked} (masked)`);
     console.log(`⏰ Valid for ${OTP_EXPIRY_MINUTES} minutes.\n`);
 }
 
