@@ -1,11 +1,10 @@
 {
   "name": "mediflow-backend",
   "version": "1.0.0",
-  "description": "Production Backend API & WebSockets for MediFlow",
+  "description": "Stable Production Backend for MediFlow",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
