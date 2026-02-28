@@ -11,7 +11,7 @@ const server = http.createServer(app);
 // ==========================================
 // 1. WEBSOCKETS & MIDDLEWARE
 // ==========================================
-// Allow your frontend to talk to this backend
+// Allow your frontends to talk to this backend safely
 app.use(cors({ origin: "*" })); 
 // Limit increased to 10mb to handle prescription image uploads safely
 app.use(express.json({ limit: '10mb' })); 
@@ -20,7 +20,8 @@ const io = new Server(server, {
     cors: { origin: "*" } 
 });
 
-// Health Check (Crucial for Render deployments to not crash)
+// 🚨 RENDER HEALTH CHECK 🚨
+// Prevents Render from thinking your app crashed and shutting it down
 app.get('/', (req, res) => {
     res.status(200).send("✅ MediFlow Backend is LIVE and listening!");
 });
@@ -28,13 +29,13 @@ app.get('/', (req, res) => {
 // ==========================================
 // 2. CLOUD DATABASE CONNECTION
 // ==========================================
-// Your live MongoDB URI
+// Replace this with your own MongoDB URI string if you changed your password
 const MONGO_URI = 'mongodb+srv://ayushgame:ayushsag@cluster0.ta1rgbl.mongodb.net/mediflow?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log('✅ Connected to LIVE MongoDB Atlas Database');
-        seedMedicines(); // Loads medicines into DB if it's empty
+        seedMedicines(); // Loads default catalog if empty
     })
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
@@ -104,11 +105,11 @@ app.post('/api/auth/send-otp', async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ success: false, message: "Phone required" });
 
-    // Generate a random 6 digit OTP (or use 123456 for testing)
+    // Static OTP for testing. Change to random in production!
     const generatedOtp = "123456"; 
 
     try {
-        // FIXED MONGOOSE DEPRECATION WARNING HERE
+        // FIXED MONGOOSE DEPRECATION WARNING (Using returnDocument: 'after')
         await OTP.findOneAndUpdate(
             { phone }, 
             { otp: generatedOtp, createdAt: Date.now() }, 
@@ -172,7 +173,7 @@ app.post('/api/addresses', async (req, res) => {
 // --- ORDERS & CHECKOUT ---
 app.post('/api/orders', async (req, res) => { 
     try { 
-        // Use ID sent from frontend (so COD & Online match) or generate a fallback
+        // Use ID sent from frontend (so COD matches) or generate a fallback
         const finalOrderId = req.body.orderId || `ORD-${Date.now()}`;
         const newOrder = new Order({ ...req.body, orderId: finalOrderId }); 
         await newOrder.save(); 
@@ -180,9 +181,9 @@ app.post('/api/orders', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// 🚨 Fetches User Order History for the "My Orders" Tab
 app.get('/api/orders/:userId', async (req, res) => {
     try {
-        // Fetch order history for the specific user, newest first
         const userOrders = await Order.find({ userId: req.params.userId }).sort({ date: -1 });
         res.json({ success: true, data: userOrders });
     } catch (err) { res.status(500).json({ success: false, message: "Error fetching order history" }); }
@@ -204,7 +205,7 @@ app.get('/api/admin/orders', async (req, res) => {
 // Update Order Status (Used by Admin Panel)
 app.put('/api/orders/:orderId/status', async (req, res) => {
     try {
-        // FIXED MONGOOSE DEPRECATION WARNING HERE
+        // FIXED MONGOOSE DEPRECATION WARNING (Using returnDocument: 'after')
         const updatedOrder = await Order.findOneAndUpdate(
             { orderId: req.params.orderId }, 
             { status: req.body.status }, 
@@ -270,6 +271,7 @@ io.on('connection', (socket) => {
 // ==========================================
 // --- SERVER START ---
 // ==========================================
+// Binding to 0.0.0.0 is MANDATORY for Render
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 MediFlow API Server running on port ${PORT}`);
